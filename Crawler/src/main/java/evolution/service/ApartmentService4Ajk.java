@@ -1,5 +1,6 @@
 package evolution.service;
 
+import java.io.File;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -15,6 +16,7 @@ import org.junit.Test;
 import org.springframework.stereotype.Service;
 
 import evolution.entity.Apartment;
+import evolution.util.Csv;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -41,6 +43,8 @@ public class ApartmentService4Ajk implements ApartmentService<Apartment> {
 						String value = pPhrase.select(">dd").first().ownText();
 						info.put(key, value);
 					}
+					// Get the phone number.
+					info.put("phone", document.select("div.broker_tel").get(0).ownText().replaceAll(" ", ""));
 				} catch (Exception e) {}
 				apartments.add(tidy(info));
 			}
@@ -48,7 +52,10 @@ public class ApartmentService4Ajk implements ApartmentService<Apartment> {
 					.map(x -> {
 						x.setPricePerArea(x.getPrice() / x.getArea());
 						return x;
-					}).sorted(Comparator.comparing(Apartment::getPricePerArea)).collect(Collectors.toList());
+					}).sorted(Comparator.comparing(Apartment::getPrice)
+							.thenComparing(Apartment::getPricePerArea)
+							.thenComparing(Apartment::getApartmentScore))
+					.collect(Collectors.toList());
 		} catch (Exception e) {
 			return null;
 		}
@@ -62,13 +69,25 @@ public class ApartmentService4Ajk implements ApartmentService<Apartment> {
 		String area = info.get("面积");
 		apartment.setArea(new Double(area.substring(0, area.length() - 2)));
 		apartment.setUrl(info.get("url"));
+		apartment.setPhone(info.get("phone"));
+		apartment.setLeaseType(info.get("租赁方式"));
+		apartment.setRentType(info.get("租金押付"));
+		String apartmentType = info.get("房型");
+		try {
+			apartment.setApartmentScore(new Integer(apartmentType.substring(0, 1)) + new Integer(apartmentType.substring(2, 3)) + new Integer(apartmentType.substring(4, 5)));
+		} catch(Exception e) {
+			apartment.setApartmentScore(Integer.MAX_VALUE);
+		}
+		apartment.setApartmentType(apartmentType);
+		apartment.setAddress(info.get("地址"));
 		return apartment;
 	}
 	
 	@Test
-	public void test() {
+	public void test() throws Exception {
 		String url = "http://sz.zu.anjuke.com/ditie/zj21/";
 		List<Apartment> apartments = search(url);
 		System.out.println(apartments);
+		Csv.toFile(apartments, new File("D:/Data/Apartments.csv"));
 	}
 }	
